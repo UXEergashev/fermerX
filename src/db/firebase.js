@@ -13,8 +13,24 @@ const firebaseConfig = {
     appId: "YOUR_APP_ID"
 };
 
-// Firebase-ni ishga tushirish
-const app = initializeApp(firebaseConfig);
-export const auth = getAuth(app);
-export const db = getFirestore(app);
+// Check if Firebase is configured (not placeholder values)
+const isFirebaseConfigured = firebaseConfig.apiKey && firebaseConfig.apiKey !== "YOUR_API_KEY";
+
+let app = null;
+let auth = null;
+let db = null;
+
+if (isFirebaseConfigured) {
+    try {
+        app = initializeApp(firebaseConfig);
+        auth = getAuth(app);
+        db = getFirestore(app);
+    } catch (error) {
+        console.warn("Firebase initialization failed:", error.message);
+    }
+} else {
+    console.warn("Firebase is not configured. Running in offline/local mode only.");
+}
+
+export { auth, db };
 export default app;

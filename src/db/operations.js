@@ -9,7 +9,7 @@ export const add = async (storeName, data) => {
     const item = { ...data, id };
 
     // Sync to cloud if user is logged in
-    if (auth.currentUser) {
+    if (auth?.currentUser) {
         await syncSingleToCloud(storeName, item);
     }
 
@@ -34,7 +34,7 @@ export const update = async (storeName, data) => {
     const result = await db.put(storeName, data);
 
     // Sync to cloud if user is logged in
-    if (auth.currentUser) {
+    if (auth?.currentUser) {
         await syncSingleToCloud(storeName, data);
     }
 
@@ -55,7 +55,7 @@ export const remove = async (storeName, id) => {
         await db.add('trash', trashItem);
 
         // Sync trash to cloud
-        if (auth.currentUser) {
+        if (auth?.currentUser) {
             await syncSingleToCloud('trash', trashItem);
             await removeSingleFromCloud(storeName, id);
         }
