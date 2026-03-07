@@ -4,7 +4,7 @@ import { useLanguage } from '../context/LanguageContext';
 import { getAllByUserId, add, update, remove } from '../db/operations';
 import Modal from '../components/Modal';
 import CropForm from '../components/CropForm';
-import { calculateExpectedYield, calculateYieldPerHectare, getYieldWarnings, getYieldHealth } from '../db/yieldPrediction';
+import { calculateAdvancedYield, getYieldWarnings, getGrowthStageInfo } from '../db/yieldPrediction';
 import {
     Sprout,
     Droplets,
@@ -174,16 +174,18 @@ const CropCard = ({ crop, onEdit, onDelete, onUpdateCrop }) => {
     const needsIrrigation = irrigationDate <= today;
     const needsFertilizer = fertilizerDate <= today;
 
-    // Calculate yield prediction
-    const expectedYield = calculateExpectedYield(crop);
-    const yieldPerHectare = calculateYieldPerHectare(crop);
-    const yieldHealth = getYieldHealth(crop);
+    // Kengaytirilgan hosildorlik hisobi (8 ta omil)
+    const yieldAnalysis = calculateAdvancedYield(crop);
+    const stageInfo = getGrowthStageInfo(crop);
     const warnings = getYieldWarnings(crop);
+    const yieldHealth = yieldAnalysis.healthPct;
+    const expectedYield = yieldAnalysis.totalYield;
+    const yieldPerHectare = yieldAnalysis.yieldPerHectare;
 
     // Determine health color
     const getHealthColor = () => {
-        if (yieldHealth >= 90) return '#10b981'; // green
-        if (yieldHealth >= 70) return '#f59e0b'; // yellow/orange
+        if (yieldHealth >= 80) return '#10b981'; // green
+        if (yieldHealth >= 60) return '#f59e0b'; // yellow/orange
         return '#ef4444'; // red
     };
 
@@ -208,7 +210,7 @@ const CropCard = ({ crop, onEdit, onDelete, onUpdateCrop }) => {
 
     const handlePostponeIrrigation = () => {
         const newDate = new Date();
-        newDate.setDate(newDate.getDate() + 1); // Postpone by 1 day
+        newDate.setDate(newDate.getDate() + 1);
         handleUpdateCropDate('irrigationDate', newDate);
     };
 
@@ -220,7 +222,7 @@ const CropCard = ({ crop, onEdit, onDelete, onUpdateCrop }) => {
 
     const handlePostponeFertilizer = () => {
         const newDate = new Date();
-        newDate.setDate(newDate.getDate() + 1); // Postpone by 1 day
+        newDate.setDate(newDate.getDate() + 1);
         handleUpdateCropDate('fertilizerDate', newDate);
     };
 
@@ -256,46 +258,91 @@ const CropCard = ({ crop, onEdit, onDelete, onUpdateCrop }) => {
                     <span className="text-primary" style={{ fontWeight: '600' }}>{crop.area} ga</span>
                 </div>
 
-                {/* Yield Prediction Section */}
-                {crop.irrigationInterval && crop.fertilizerInterval && (
-                    <div style={{ ...styles.yieldSection, borderColor: getHealthColor() }}>
-                        <div style={styles.yieldHeader}>
-                            <div className="icon-container" style={{ background: 'var(--bg-page)', padding: '6px' }}>
-                                <BarChart3 size={18} />
-                            </div>
-                            <span style={{ fontWeight: '600', color: 'var(--text-main)' }}>Hosildorlik prognozi</span>
+                {/* Kengaytirilgan Hosildorlik Pragnozi */}
+                <div style={{ ...styles.yieldSection, borderColor: getHealthColor() }}>
+                    <div style={styles.yieldHeader}>
+                        <div className="icon-container" style={{ background: 'var(--bg-page)', padding: '6px' }}>
+                            <BarChart3 size={18} />
                         </div>
-                        <div style={styles.yieldData}>
-                            <div>
-                                <div className="text-muted text-small">Taxminiy hosil</div>
-                                <div style={{ fontSize: '1.25rem', fontWeight: '700', color: getHealthColor() }}>
-                                    {expectedYield.toFixed(1)} t
-                                </div>
-                                <div className="text-muted text-small">({yieldPerHectare.toFixed(1)} t/ga)</div>
+                        <span style={{ fontWeight: '600', color: 'var(--text-main)' }}>Hosildorlik prognozi</span>
+                        <span style={{
+                            marginLeft: 'auto',
+                            fontSize: '0.7rem',
+                            fontWeight: '600',
+                            color: 'white',
+                            background: getHealthColor(),
+                            padding: '2px 8px',
+                            borderRadius: '10px'
+                        }}>
+                            {yieldHealth.toFixed(0)}%
+                        </span>
+                    </div>
+
+                    {/* Asosiy ko'rsatkichlar */}
+                    <div style={styles.yieldData}>
+                        <div>
+                            <div className="text-muted text-small">Taxminiy hosil</div>
+                            <div style={{ fontSize: '1.25rem', fontWeight: '700', color: getHealthColor() }}>
+                                {expectedYield.toFixed(1)} t
                             </div>
-                            <div style={{ textAlign: 'right' }}>
-                                <div className="text-muted text-small">Holat</div>
-                                <div style={{ fontSize: '1.5rem', fontWeight: '700', color: getHealthColor() }}>
-                                    {yieldHealth.toFixed(0)}%
-                                </div>
-                                <div style={{
-                                    height: '4px',
-                                    background: '#e5e7eb',
-                                    borderRadius: '2px',
-                                    marginTop: '0.25rem',
-                                    overflow: 'hidden'
-                                }}>
-                                    <div style={{
-                                        width: `${yieldHealth}% `,
-                                        height: '100%',
-                                        background: getHealthColor(),
-                                        transition: 'width 0.3s ease'
-                                    }} />
-                                </div>
+                            <div className="text-muted text-small">({yieldPerHectare.toFixed(1)} t/ga)</div>
+                        </div>
+                        <div style={{ textAlign: 'right' }}>
+                            <div className="text-muted text-small">O'sish bosqichi</div>
+                            <div style={{ fontSize: '0.85rem', fontWeight: '600', color: 'var(--text-main)', marginTop: '2px' }}>
+                                {stageInfo.stageLabel}
                             </div>
+                            {stageInfo.daysLeft !== null && stageInfo.daysLeft >= 0 && (
+                                <div className="text-muted text-small">{stageInfo.daysLeft} kun qoldi</div>
+                            )}
                         </div>
                     </div>
-                )}
+
+                    {/* Progress bar */}
+                    <div style={{ marginTop: '0.75rem' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.7rem', color: 'var(--text-muted)', marginBottom: '3px' }}>
+                            <span>O'sish: {stageInfo.progress?.toFixed(0) || 0}%</span>
+                            <span>Hosil: {yieldHealth.toFixed(0)}%</span>
+                        </div>
+                        <div style={{ height: '5px', background: '#e5e7eb', borderRadius: '3px', overflow: 'hidden', marginBottom: '2px' }}>
+                            <div style={{
+                                width: `${stageInfo.progress || 0}%`,
+                                height: '100%',
+                                background: 'linear-gradient(90deg, #10b981, #3b82f6)',
+                                transition: 'width 0.3s ease'
+                            }} />
+                        </div>
+                        <div style={{ height: '4px', background: '#e5e7eb', borderRadius: '2px', overflow: 'hidden' }}>
+                            <div style={{
+                                width: `${yieldHealth}%`,
+                                height: '100%',
+                                background: getHealthColor(),
+                                transition: 'width 0.3s ease'
+                            }} />
+                        </div>
+                    </div>
+
+                    {/* Mini omillar ko'rinishi */}
+                    <div style={{ marginTop: '0.75rem', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '4px' }}>
+                        {[
+                            { key: 'irrigation', icon: '💧', label: 'Sug\'orish' },
+                            { key: 'fertilizer', icon: '🧪', label: 'O\'g\'it' },
+                            { key: 'climate', icon: '🌡️', label: 'Ob-havo' },
+                            { key: 'seed', icon: '🌱', label: 'Urug\'' }
+                        ].map(({ key, icon, label }) => {
+                            const f = yieldAnalysis.factors[key];
+                            const val = f?.factor !== undefined ? f.factor : (f?.multiplier || 1);
+                            const c = val >= 0.95 ? '#10b981' : val >= 0.80 ? '#f59e0b' : '#ef4444';
+                            return (
+                                <div key={key} style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.72rem' }}>
+                                    <span>{icon}</span>
+                                    <span style={{ color: 'var(--text-muted)' }}>{label}:</span>
+                                    <span style={{ fontWeight: '700', color: c }}>{(val * 100).toFixed(0)}%</span>
+                                </div>
+                            );
+                        })}
+                    </div>
+                </div>
 
                 {crop.expenseAmount && parseFloat(crop.expenseAmount) > 0 && (
                     <div style={styles.info}>
