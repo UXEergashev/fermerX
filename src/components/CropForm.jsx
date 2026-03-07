@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { calculateAvailableLand } from '../db/calculations';
+import { getAllByUserId } from '../db/operations';
 import { useAuth } from '../context/AuthContext';
 import { useLanguage } from '../context/LanguageContext';
 import {
@@ -18,10 +19,11 @@ const CropForm = ({ crop, onSave, onCancel }) => {
         type: crop?.type || 'Don',
         plantDate: crop?.plantDate || new Date().toISOString().split('T')[0],
         area: crop?.area || '',
+        landId: crop?.landId || '',
         irrigationDate: crop?.irrigationDate || '',
         fertilizerDate: crop?.fertilizerDate || '',
-        irrigationInterval: crop?.irrigationInterval || '7',  // Default 7 days
-        fertilizerInterval: crop?.fertilizerInterval || '14',  // Default 14 days
+        irrigationInterval: crop?.irrigationInterval || '7',
+        fertilizerInterval: crop?.fertilizerInterval || '14',
         notes: crop?.notes || '',
         // Alohida xarajatlar
         seedsExpense: crop?.seedsExpense || '',
@@ -31,9 +33,12 @@ const CropForm = ({ crop, onSave, onCancel }) => {
     });
     const [error, setError] = useState('');
     const [availableLand, setAvailableLand] = useState(0);
+    const [lands, setLands] = useState([]);
+    const [selectedLandArea, setSelectedLandArea] = useState(0);
 
     useEffect(() => {
         loadAvailableLand();
+        loadLands();
     }, []);
 
     const loadAvailableLand = async () => {
@@ -41,11 +46,36 @@ const CropForm = ({ crop, onSave, onCancel }) => {
         setAvailableLand(available);
     };
 
-    const handleChange = (e) => {
-        setFormData({
-            ...formData,
-            [e.target.name]: e.target.value
+    const loadLands = async () => {
+        const allLands = await getAllByUserId('land', user.id);
+        const allCrops = await getAllByUserId('crops', user.id);
+        // Har bir yer uchun bo'sh maydonni hisoblang
+        const landsWithAvailable = allLands.map(land => {
+            const used = allCrops
+                .filter(c => c.landId === land.id && (!crop || c.id !== crop.id))
+                .reduce((sum, c) => sum + (parseFloat(c.area) || 0), 0);
+            return {
+                ...land,
+                availableArea: parseFloat(land.totalArea) - used
+            };
         });
+        setLands(landsWithAvailable);
+        // Agar tahrirlash bo'lsa, eski landId ni tanla
+        if (crop?.landId) {
+            const found = landsWithAvailable.find(l => l.id === crop.landId);
+            if (found) setSelectedLandArea(found.availableArea + (parseFloat(crop.area) || 0));
+        }
+    };
+
+    const handleChange = (e) => {
+        const { name, value } = e.target;
+        setFormData(prev => ({ ...prev, [name]: value }));
+        // Yer tanlanganda bo'sh maydonni yangilash
+        if (name === 'landId') {
+            const found = lands.find(l => l.id === parseInt(value));
+            if (found) setSelectedLandArea(found.availableArea);
+            else setSelectedLandArea(0);
+        }
         setError('');
     };
 
@@ -63,15 +93,31 @@ const CropForm = ({ crop, onSave, onCancel }) => {
         }
 
         const requestedArea = parseFloat(formData.area);
-        const currentArea = crop?.area || 0;
-        const maxAllowed = availableLand + currentArea;
 
-        if (requestedArea > maxAllowed) {
-            setError(`${t('land.empty')}: ${maxAllowed.toFixed(2)} ${t('common.ha')}`);
-            return;
+        // Agar yer tanlangan bo'lsa — shu yerning bo'sh maydonini tekshir
+        if (formData.landId) {
+            const land = lands.find(l => l.id === parseInt(formData.landId));
+            if (land) {
+                const maxForThisLand = land.availableArea + (crop?.landId === land.id ? parseFloat(crop.area || 0) : 0);
+                if (requestedArea > maxForThisLand) {
+                    setError(`"${land.name}" da bo'sh yer: ${maxForThisLand.toFixed(2)} ga`);
+                    return;
+                }
+            }
+        } else {
+            // Yer tanlanmagan — umumiy bo'sh maydonni tekshir
+            const currentArea = crop?.area || 0;
+            const maxAllowed = availableLand + parseFloat(currentArea);
+            if (requestedArea > maxAllowed) {
+                setError(`${t('land.empty')}: ${maxAllowed.toFixed(2)} ${t('common.ha')}`);
+                return;
+            }
         }
 
-        onSave(formData);
+        onSave({
+            ...formData,
+            landId: formData.landId ? parseInt(formData.landId) : null
+        });
     };
 
     return (
@@ -85,6 +131,38 @@ const CropForm = ({ crop, onSave, onCancel }) => {
             {!crop && (
                 <div className="alert alert-info mb-md">
                     {t('dashboard.emptyLand')}: {availableLand.toFixed(2)} {t('common.ha')}
+                </div>
+            )}
+
+            {/* Yer tanlash */}
+            {lands.length > 0 && (
+                <div className="form-group">
+                    <label className="form-label">🗺️ Qaysi yerga ekiladi?</label>
+                    <select
+                        name="landId"
+                        className="form-select"
+                        value={formData.landId}
+                        onChange={handleChange}
+                    >
+                        <option value="">— Tanlang (ixtiyoriy) —</option>
+                        {lands.map(land => (
+                            <option
+                                key={land.id}
+                                value={land.id}
+                                disabled={land.availableArea <= 0 && land.id !== crop?.landId}
+                            >
+                                {land.name} — bo'sh: {land.availableArea.toFixed(2)} ga / jami: {land.totalArea} ga
+                                {land.availableArea <= 0 && land.id !== crop?.landId ? " (to'liq)" : ''}
+                            </option>
+                        ))}
+                    </select>
+                    {formData.landId && (
+                        <small className="text-muted">
+                            Tanlangan yerda bo'sh: <strong style={{ color: '#10b981' }}>
+                                {selectedLandArea.toFixed(2)} ga
+                            </strong>
+                        </small>
+                    )}
                 </div>
             )}
 

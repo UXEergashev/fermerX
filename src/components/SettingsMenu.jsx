@@ -10,7 +10,8 @@ import {
     ShieldCheck,
     CircleHelp,
     Trash as TrashIcon,
-    RefreshCw
+    RefreshCw,
+    Archive
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
@@ -118,6 +119,12 @@ const SettingsMenu = ({ isOpen, onClose }) => {
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
                         <TrashIcon size={18} />
                         <span>{t('settings.trash') || 'Karzinka'}</span>
+                    </div>
+                </div>
+                <div className="settings-item" style={{ cursor: 'pointer' }} onClick={() => { navigate('/harvested-crops'); onClose(); }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                        <Archive size={18} />
+                        <span>🌾 Yig'ilgan ekinlar</span>
                     </div>
                 </div>
                 <div className="settings-item" style={{ cursor: 'pointer' }}>

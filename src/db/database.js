@@ -1,7 +1,7 @@
 import { openDB } from 'idb';
 
 const DB_NAME = 'FermerXDB';
-const DB_VERSION = 4;
+const DB_VERSION = 5;
 
 export const initDB = async () => {
     const db = await openDB(DB_NAME, DB_VERSION, {
@@ -109,6 +109,17 @@ export const initDB = async () => {
             // Migration for version 4: Extra checks if needed
             if (oldVersion < 4) {
                 // Version 4 specific logic
+            }
+
+            // Version 5: Harvested Crops archive store
+            let harvestedStore;
+            if (!db.objectStoreNames.contains('harvestedCrops')) {
+                harvestedStore = db.createObjectStore('harvestedCrops', { keyPath: 'id', autoIncrement: true });
+            } else {
+                harvestedStore = transaction.objectStore('harvestedCrops');
+            }
+            if (!harvestedStore.indexNames.contains('userId')) {
+                harvestedStore.createIndex('userId', 'userId');
             }
         },
     });
